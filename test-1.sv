@@ -1,7 +1,8 @@
 `timescale 1 ns / 1 ns
 
 module fpwm #(
-	parameter WIDTH = 7
+	parameter PWM_WIDTH = 8,
+	parameter SPI_WIDTH = 8
 )
 (
 	output logic o_Positve,
@@ -14,39 +15,51 @@ module fpwm #(
 	input i_Resetn
 );
 
-logic [WIDTH-1:0] control;
+	logic [PWM_WIDTH-1:0] control;
 
-logic [WIDTH-1:0] pos_count;
-logic [WIDTH-1:0] neg_count;
-logic [WIDTH-1:0] pos_compare0 = '0;
-logic [WIDTH-1:0] pos_compare1 = '0;
-logic [WIDTH-1:0] neg_compare0 = '0;
-logic [WIDTH-1:0] neg_compare1 = '0;
+	logic [PWM_WIDTH-1:0] pos_count;
+	logic [PWM_WIDTH-1:0] neg_count;
+	logic [PWM_WIDTH-1:0] pos_compare0 = '0;
+	logic [PWM_WIDTH-1:0] pos_compare1 = '0;
+	logic [PWM_WIDTH-1:0] neg_compare0 = '0;
+	logic [PWM_WIDTH-1:0] neg_compare1 = '0;
+	logic [PWM_WIDTH-1:0] rx_data;
 
-logic [WIDTH-1:0] shift_reg = '0;
-logic [5:0] bit_count = 0;
+	logic [SPI_WIDTH-1:0] shift_reg = '0;
+	logic [5:0] bit_count = 0;
 
-logic pos, neg;
+	logic pos, neg;
 
-always @(negedge i_SCK) begin
-	if(i_SS == 0) begin
-		shift_reg[0] <= i_MOSI;
-		shift_reg[WIDTH-1:1] <= shift_reg[WIDTH-2:0];
-		bit_count <= bit_count + 1;
-		if(bit_count == WIDTH-1)
-			pos_compare0 <= shift_reg;
-		else if(bit_count == (2*WIDTH)-1)
-			pos_compare1 <= shift_reg;
-		else if(bit_count == (3*WIDTH)-1)
-			neg_compare0 <= shift_reg;
-		else if(bit_count == (4*WIDTH)-1)
-			neg_compare1 <= shift_reg;
-		else if(bit_count == (5*WIDTH)-1)
-			control <= shift_reg;
-	end else begin
-		bit_count <= '0;
+	assign rx_data = {shift_reg[PWM_WIDTH-1:1], i_MOSI};
+
+	always @(negedge i_SCK) begin
+		if(i_SS == 0) begin
+			shift_reg[0] <= i_MOSI;
+			shift_reg[SPI_WIDTH-1:1] <= shift_reg[SPI_WIDTH-2:0];
+			bit_count <= bit_count + 1;
+		end else begin
+			bit_count <= '0;
+		end
 	end
-end
+
+	always @(bit_count) begin
+		if(bit_count == SPI_WIDTH) begin
+			pos_compare0 <= rx_data;
+			$display("Set pos 0 %2d (0x%2x)", rx_data, rx_data);
+		end else if(bit_count == (2*SPI_WIDTH)) begin
+			$display("Set pos 1 %2d (0x%2x)", rx_data, rx_data);
+			pos_compare1 <= rx_data;
+		end else if(bit_count == (3*SPI_WIDTH)) begin
+			$display("Set neg 0 %2d (0x%2x)", rx_data, rx_data);
+			neg_compare0 <= rx_data;
+		end else if(bit_count == (4*SPI_WIDTH)) begin
+			$display("Set neg 1 %2d (0x%2x)", rx_data, rx_data);
+			neg_compare1 <= rx_data;
+		end else if(bit_count == (5*SPI_WIDTH)) begin
+			$display("Set ctrl %2d (0x%2x)", rx_data, rx_data);
+			control <= rx_data;
+		end
+	end
 
 always @(posedge i_Clk or negedge i_Resetn) begin
 	if(i_Resetn == 0)begin

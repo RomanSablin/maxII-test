@@ -8,21 +8,27 @@ module top_tb;
     real period_1 = (1000000000.0/FRECUENCY)/2.0;
     always #(period_1) clk = !clk;
 
+    task SenBit(bit _bit);
+        mosi = _bit;
+        sck = 1;
+        #100;
+        sck = 0;
+        #100;
+    endtask : SenBit
+
     task SendByte(byte _value);
-        for(int i=0; i<8; i++) begin
-            mosi = _value[i];
-            sck = 1;
-            #100;
-            sck = 0;
-            #100;
+        for(int i=7; i>=0; i--) begin
+            SenBit(_value[i]);
         end
     endtask : SendByte
 
-    task automatic SpiSend(const ref byte _array[$]);
+    task SpiSend(byte _p0, byte _p1, byte _n0, byte _n1, byte _cfg);
         ss = 0;
-        for (int i=0; i<_array.size; i++) begin
-            SendByte(_array[i]);
-        end
+        SendByte(_p0);
+        SendByte(_p1);
+        SendByte(_n0);
+        SendByte(_n1);
+        SendByte(_cfg);
         ss = 1;
     endtask : SpiSend
 
@@ -39,8 +45,6 @@ module top_tb;
     );
 
     initial begin
-        byte tx[$];
-
         $dumpfile("test-1.vcd");
         $dumpvars(0,top_tb);
         resetn = 0;
@@ -50,16 +54,12 @@ module top_tb;
         resetn = 1;
         #200;
         enable = 1;
-        tx.push_back(8'h12);
-        tx.push_back(8'h34);
-        tx.push_back(8'h56);
-        tx.push_back(8'h78);
-        tx.push_back(8'h11);
-        SpiSend(tx);
-		#100000;
+        #200;
+        SpiSend(8'h12, 8'h34, 8'h56, 8'h78, 8'h11);
+		#1000000;
 		$finish();
     end
 
-    initial $monitor($stime,, resetn,, clk,,, enable,, sck,, mosi,, pos,, neg);
+//    initial $monitor($stime,, resetn,, clk,,, enable,, sck,, mosi,, pos,, neg);
 
 endmodule : top_tb
